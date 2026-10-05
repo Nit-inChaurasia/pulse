@@ -15,7 +15,10 @@ from fetchers import COMPANIES, run_all
 
 GITHUB_URL = "https://github.com/rebelbhai701/pulse"
 
-app = Flask(__name__)
+# CSS lives in public/static/. On Vercel, files under public/ are served
+# straight from the CDN (Flask's static route is not used there); locally,
+# Flask serves the same folder at the same /static/ URL. One codebase, both places.
+app = Flask(__name__, static_folder="public/static", static_url_path="/static")
 
 
 @app.get("/")
