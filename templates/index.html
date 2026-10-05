@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pulse · live company updates</title>
+  <meta name="description" content="Latest public updates from OpenAI, Anthropic and Qualtrics, fetched live on every page load.">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <h1 class="brand">Pulse</h1>
+      <p class="tagline">Latest public updates from OpenAI, Anthropic and Qualtrics, pulled live from their feeds and pages.</p>
+      <p class="fetched">
+        <span class="live-dot" aria-hidden="true"></span>
+        Fetched live at <time datetime="{{ fetched_at }}">{{ fetched_at | fulldate }}</time>
+        in <strong>{{ total_ms }} ms</strong>
+        · <a href="{{ url_for('api_updates') }}">raw JSON</a>
+      </p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="panel" aria-labelledby="status-heading">
+      <h2 id="status-heading">Sources</h2>
+      <table class="status">
+        <thead>
+          <tr><th scope="col">Company</th><th scope="col">Source</th><th scope="col">Result</th></tr>
+        </thead>
+        <tbody>
+          {% for s in sources %}
+          <tr class="{{ 'is-error' if s.status == 'error' else 'is-ok' }}">
+            <td><span class="badge badge-{{ s.company | lower }}">{{ s.company }}</span></td>
+            <td>
+              {{ s.source_type }}
+              {% if s.bonus %}<span class="tag tag-bonus">Bonus</span>{% endif %}
+            </td>
+            <td>
+              {% if s.status == 'ok' %}
+                ✅ {{ s['items'] | length }} items · {{ s.fetch_ms }} ms
+              {% else %}
+                ❌ <span class="error">{{ s.error }}</span> <span class="muted">· {{ s.fetch_ms }} ms</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <nav class="tabs" aria-label="Filter by company">
+      <button type="button" class="tab" data-filter="all" aria-pressed="true">All <span class="count">{{ items | length }}</span></button>
+      {% for company in companies %}
+      <button type="button" class="tab" data-filter="{{ company }}" aria-pressed="false">
+        {{ company }} <span class="count">{{ items | selectattr('company', 'equalto', company) | list | length }}</span>
+      </button>
+      {% endfor %}
+    </nav>
+
+    <ol class="feed">
+      {% for item in items %}
+      <li class="card" data-company="{{ item.company }}">
+        <div class="meta">
+          <span class="badge badge-{{ item.company | lower }}">{{ item.company }}</span>
+          <span class="tag">{{ item.source_type }}</span>
+          <time datetime="{{ item.published or '' }}" title="{{ item.published | fulldate }}">{{ item.published | timeago }}</time>
+        </div>
+        <h3 class="title"><a href="{{ item.url }}" target="_blank" rel="noopener noreferrer">{{ item.title }}</a></h3>
+        {% if item.summary %}<p class="summary">{{ item.summary }}</p>{% endif %}
+      </li>
+      {% else %}
+      <li class="empty">No updates could be fetched right now. The status panel above shows why.</li>
+      {% endfor %}
+    </ol>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      Every item above comes from a live HTTP request made when this page loaded.
+      · <a href="{{ github_url }}">Source on GitHub</a>
+    </div>
+  </footer>
+
+  <script>
+    // Filter tabs: show only cards whose data-company matches the chosen tab.
+    const tabs = document.querySelectorAll(".tab");
+    const cards = document.querySelectorAll(".card");
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const filter = tab.dataset.filter;
+        tabs.forEach((t) => t.setAttribute("aria-pressed", String(t === tab)));
+        cards.forEach((card) => {
+          card.hidden = filter !== "all" && card.dataset.company !== filter;
+        });
+      });
+    });
+  </script>
+</body>
+</html>
