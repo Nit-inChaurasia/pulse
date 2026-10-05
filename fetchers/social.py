@@ -119,7 +119,8 @@ def _x_post_to_item(post: Tag, company: str, source_type: str) -> Optional[Item]
     text_div = post.find("div", class_="whitespace-pre-wrap")
     if link is None or text_div is None:
         return None  # e.g. a repost of another account's post
-    text = text_div.get_text("\n", strip=True)
+    # Long posts end with an inline "Show more" button; it isn't part of the post.
+    text = text_div.get_text("\n", strip=True).removesuffix("Show more").strip()
     status_id = int(link["href"].rsplit("/", 1)[1])
 
     # X "snowflake" IDs: the top 42 bits are ms since X's own epoch.
