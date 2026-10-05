@@ -13,7 +13,7 @@ from flask import Flask, Response, jsonify, render_template
 
 from fetchers import COMPANIES, run_all
 
-GITHUB_URL = "https://github.com/rebelbhai701/pulse"
+GITHUB_URL = "https://github.com/Nit-inChaurasia/pulse"
 
 # CSS lives in public/static/. On Vercel, files under public/ are served
 # straight from the CDN (Flask's static route is not used there); locally,
