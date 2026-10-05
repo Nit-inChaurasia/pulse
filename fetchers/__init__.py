@@ -18,6 +18,7 @@ import requests
 
 from .anthropic_news import fetch_anthropic_news
 from .common import TIMEOUT_SECONDS, Item, SourceResult
+from .qualtrics_news import fetch_qualtrics_news
 from .rss import fetch_feed
 from .social import fetch_linkedin, fetch_x
 
@@ -49,9 +50,12 @@ SOURCES: list[Source] = [
     Source("anthropic-youtube", "Anthropic", "YouTube",
            partial(fetch_feed, YOUTUBE_FEED.format("UCrDwWp7EBBv4NwvScIpBDOA"))),
     # Qualtrics has no blog RSS feed (checked: /blog/feed/ and variants are 404),
-    # so its YouTube channel is the primary source.
+    # so its YouTube channel is the primary source. YouTube refuses feeds to
+    # cloud IPs, so the newsroom scrape keeps Qualtrics covered on Vercel.
     Source("qualtrics-youtube", "Qualtrics", "YouTube",
            partial(fetch_feed, YOUTUBE_FEED.format("UCYZGKyf7DygMlsU0sFQ0AkQ"))),
+    Source("qualtrics-news", "Qualtrics", "Web scrape",
+           fetch_qualtrics_news),
     Source("anthropic-linkedin", "Anthropic", "LinkedIn", fetch_linkedin, bonus=True),
     Source("anthropic-x", "Anthropic", "X", fetch_x, bonus=True),
 ]
