@@ -31,16 +31,18 @@ Python 3.10+ works (Vercel runs 3.12). There are no API keys, environment variab
 | Anthropic | News page | HTML scrape (`requests` + BeautifulSoup) | `https://www.anthropic.com/news` | ✅ 10 items | ✅ 10 items |
 | Anthropic | YouTube | Atom feed via `feedparser` | `youtube.com/feeds/videos.xml?channel_id=UCrDwWp7EBBv4NwvScIpBDOA` | ✅ 10 items | ❌ HTTP 404 |
 | Qualtrics | YouTube | Atom feed via `feedparser` | `youtube.com/feeds/videos.xml?channel_id=UCYZGKyf7DygMlsU0sFQ0AkQ` | ✅ 10 items | ❌ HTTP 404 |
+| Qualtrics | Newsroom | HTML scrape: listing page plus each article page (in parallel) | `https://www.qualtrics.com/news/` | ✅ 10 items | ✅ 10 items |
 | Anthropic *(bonus)* | LinkedIn | Plain GET, logged out | `https://www.linkedin.com/company/anthropicresearch/` | ✅ 10 posts | ✅ 10 posts |
 | Anthropic *(bonus)* | X | Plain GET, logged out | `https://x.com/AnthropicAI` | ✅ 5 posts | ✅ 5 posts |
 
-Statuses were checked on 5 Oct 2026. The page's status panel shows the live result on every load.
+Statuses were checked on 5 Oct 2026 against http://localhost:5000 and https://pulse.3minbite.online. The page's status panel shows the live result on every load.
 
 **How each source was found and checked.** Every URL was requested and its response inspected before any fetcher was written:
 
 - **YouTube channel IDs** come from the `<link rel="canonical">` on each channel page: `@anthropic-ai`, and `user/QualtricsSoftware`, which is the channel qualtrics.com links to.
-- **Qualtrics has no blog RSS.** `/blog/feed/`, `/articles/feed/`, `/news/feed.xml` and similar paths all return 404. `/rss.xml` responds, but it's a CMS dump of event-page templates, not posts, so YouTube is Qualtrics' source.
-- **⚠️ YouTube on Vercel.** YouTube returns 404 for channel feeds when the request comes from a cloud or datacenter IP. The same URL returns 200 from a home connection. Both feeds are kept, and the error is shown honestly on the page. As a result, **Qualtrics currently has no items on the hosted version**; it has 10 when run locally.
+- **Qualtrics has no blog RSS.** `/blog/feed/`, `/articles/feed/`, `/news/feed.xml` and similar paths all return 404. `/rss.xml` responds, but it's a CMS dump of event-page templates, not posts, so YouTube is Qualtrics' primary source.
+- **⚠️ YouTube on Vercel.** YouTube returns 404 for channel feeds when the request comes from a cloud or datacenter IP. The same URL returns 200 from a home connection. Both feeds are kept, and the error is shown honestly on the page.
+- **Qualtrics newsroom (added after deploying).** Because of the YouTube block, Qualtrics had no items on the hosted site, so I added a scrape of the newsroom, which works from cloud IPs. Its listing page has titles but no dates, so the fetcher also opens each article (10 requests in parallel) to read its date label and meta description. That costs about 1–1.5s, which still sits inside the page deadline.
 
 ## 3. Walkthrough of the fetch code
 
@@ -52,6 +54,7 @@ Everything lives in [`fetchers/`](fetchers):
 | [`common.py`](fetchers/common.py) | `http_get()` (the one place the User-Agent and 6s timeout are set), plus date and summary normalisation |
 | [`rss.py`](fetchers/rss.py) | `fetch_feed()`: one generic RSS/Atom fetcher, used for OpenAI and both YouTube channels |
 | [`anthropic_news.py`](fetchers/anthropic_news.py) | `fetch_anthropic_news()`: scrapes the `<a href="/news/…">` cards |
+| [`qualtrics_news.py`](fetchers/qualtrics_news.py) | `fetch_qualtrics_news()`: a two-step scrape (listing page, then each article in parallel for its date) |
 | [`social.py`](fetchers/social.py) | `fetch_linkedin()` / `fetch_x()`: the bonus attempts |
 
 **Where the HTTP requests happen:**
@@ -99,5 +102,5 @@ Directed with Claude Code: I wrote the brief, approved the plan, and approved ea
 - **Scheduling.** A Vercel Cron job (or GitHub Action) that pulls every 15 minutes.
 - **Change tracking.** Store seen URLs (e.g. Vercel KV / Postgres) so the page can show what's new since the last visit.
 - **Alerts.** Email or Slack when a tracked company posts.
-- **More sources.** A Qualtrics newsroom scrape (it works from cloud IPs, so it would fix the hosted gap), plus GitHub releases and podcast feeds.
+- **More sources.** GitHub releases, podcast feeds, and a YouTube fallback that works from cloud IPs.
 - **Short caching.** A 2–5 minute cache to be polite to sources under real traffic.
