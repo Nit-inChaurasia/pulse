@@ -39,6 +39,7 @@ class Item(TypedDict):
     published: Optional[str]  # ISO-8601 UTC, e.g. "2026-10-01T14:00:00Z"
     source_type: str
     summary: Optional[str]
+    date_approx: bool  # True when the date was derived from "3 days ago"-style text
 
 
 class SourceResult(TypedDict):
@@ -52,6 +53,7 @@ class SourceResult(TypedDict):
     error: Optional[str]
     items: list[Item]
     fetch_ms: int
+    note: Optional[str]  # e.g. "used a fallback method"
 
 
 def http_get(url: str, **kwargs) -> requests.Response:
@@ -109,6 +111,7 @@ def make_item(
     url: str,
     published: DateInput = None,
     summary: Optional[str] = None,
+    date_approx: bool = False,
 ) -> Item:
     """Build an Item, normalising the date and summary on the way in."""
     return {
@@ -118,4 +121,5 @@ def make_item(
         "published": to_utc_iso(published),
         "source_type": source_type,
         "summary": clean_summary(summary),
+        "date_approx": date_approx,
     }

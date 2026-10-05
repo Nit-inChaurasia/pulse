@@ -18,15 +18,13 @@ import requests
 
 from .anthropic_news import fetch_anthropic_news
 from .common import TIMEOUT_SECONDS, Item, SourceResult
-from .qualtrics_news import fetch_qualtrics_news
 from .rss import fetch_feed
 from .social import fetch_linkedin, fetch_x
+from .youtube import fetch_youtube
 
 MAX_ITEMS_PER_SOURCE = 10
 # Hard ceiling for the whole pull, so one slow site can't hold the page past ~10s.
 DEADLINE_SECONDS = 8.5
-
-YOUTUBE_FEED = "https://www.youtube.com/feeds/videos.xml?channel_id={}"
 
 
 @dataclass(frozen=True)
@@ -40,27 +38,28 @@ class Source:
     bonus: bool = False
 
 
+# The three companies we track, with a one-line description for the landing page.
+COMPANIES: dict[str, str] = {
+    "OpenAI": "AI research lab behind ChatGPT",
+    "Anthropic": "AI safety company behind Claude",
+    "Gartner": "Research and advisory for business leaders",
+}
+
 SOURCES: list[Source] = [
     Source("openai-news", "OpenAI", "Blog RSS",
            partial(fetch_feed, "https://openai.com/news/rss.xml")),
     Source("anthropic-news", "Anthropic", "Web scrape",
            fetch_anthropic_news),
-    # Channel IDs come from the canonical <link> on each channel's page
-    # (youtube.com/@anthropic-ai and youtube.com/user/QualtricsSoftware).
+    # Channel IDs come from the canonical <link> on each channel's page.
     Source("anthropic-youtube", "Anthropic", "YouTube",
-           partial(fetch_feed, YOUTUBE_FEED.format("UCrDwWp7EBBv4NwvScIpBDOA"))),
-    # Qualtrics has no blog RSS feed (checked: /blog/feed/ and variants are 404),
-    # so its YouTube channel is the primary source. YouTube refuses feeds to
-    # cloud IPs, so the newsroom scrape keeps Qualtrics covered on Vercel.
-    Source("qualtrics-youtube", "Qualtrics", "YouTube",
-           partial(fetch_feed, YOUTUBE_FEED.format("UCYZGKyf7DygMlsU0sFQ0AkQ"))),
-    Source("qualtrics-news", "Qualtrics", "Web scrape",
-           fetch_qualtrics_news),
+           partial(fetch_youtube, handle="@anthropic-ai", channel_id="UCrDwWp7EBBv4NwvScIpBDOA")),
+    # gartner.com answers every plain request (even robots.txt) with a Cloudflare
+    # bot challenge, so Gartner's newsroom can't be read; YouTube is its source.
+    Source("gartner-youtube", "Gartner", "YouTube",
+           partial(fetch_youtube, handle="@Gartnervideo", channel_id="UCSNX50LYGXWV_e5UWZGPGbw")),
     Source("anthropic-linkedin", "Anthropic", "LinkedIn", fetch_linkedin, bonus=True),
     Source("anthropic-x", "Anthropic", "X", fetch_x, bonus=True),
 ]
-
-COMPANIES: list[str] = list(dict.fromkeys(s.company for s in SOURCES))
 
 
 # ---- Running sources -------------------------------------------------------
@@ -103,7 +102,10 @@ def run_source(source: Source) -> SourceResult:
     except Exception as exc:  # deliberately broad: any failure is reported, not raised
         items, status, error = [], "error", describe_error(exc)
 
-    return _result(source, status, error, items, _ms_since(started))
+    result = _result(source, status, error, items, _ms_since(started))
+    if any(item.get("date_approx") for item in items):
+        result["note"] = "Official feed failed, used the channel page instead (dates approximate)"
+    return result
 
 
 # ---- Helpers ---------------------------------------------------------------
@@ -156,6 +158,7 @@ def _result(source: Source, status: str, error, items: list[Item], fetch_ms: int
         "error": error,
         "items": items,
         "fetch_ms": fetch_ms,
+        "note": None,
     }
 
 
