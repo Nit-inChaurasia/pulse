@@ -3,98 +3,95 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Pulse · live company updates</title>
-  <meta name="description" content="Latest public updates from OpenAI, Anthropic and Qualtrics, fetched live on every page load.">
+  <title>Pulse · live updates from OpenAI, Anthropic and Gartner</title>
+  <meta name="description" content="Fetch the latest public updates from OpenAI, Anthropic and Gartner, live, in one click.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2316803c'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <header class="site-header">
-    <div class="wrap">
-      <h1 class="brand">Pulse</h1>
-      <p class="tagline">Latest public updates from OpenAI, Anthropic and Qualtrics, pulled live from their feeds and pages.</p>
-      <p class="fetched">
-        <span class="live-dot" aria-hidden="true"></span>
-        Fetched live at <time datetime="{{ fetched_at }}">{{ fetched_at | fulldate }}</time>
-        in <strong>{{ total_ms }} ms</strong>
-        · <a href="{{ url_for('api_updates') }}">raw JSON</a>
-      </p>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="logo" href="/"><span class="logo-dot" aria-hidden="true"></span>Pulse</a>
+      <a class="topbar-link" href="{{ github_url }}">GitHub</a>
     </div>
   </header>
 
   <main class="wrap">
-    <section class="panel" aria-labelledby="status-heading">
-      <h2 id="status-heading">Sources</h2>
-      <table class="status">
-        <thead>
-          <tr><th scope="col">Company</th><th scope="col">Source</th><th scope="col">Result</th></tr>
-        </thead>
-        <tbody>
-          {% for s in sources %}
-          <tr class="{{ 'is-error' if s.status == 'error' else 'is-ok' }}">
-            <td><span class="badge badge-{{ s.company | lower }}">{{ s.company }}</span></td>
-            <td>
-              {{ s.source_type }}
-              {% if s.bonus %}<span class="tag tag-bonus">Bonus</span>{% endif %}
-            </td>
-            <td>
-              {% if s.status == 'ok' %}
-                ✅ {{ s['items'] | length }} items · {{ s.fetch_ms }} ms
-              {% else %}
-                ❌ <span class="error">{{ s.error }}</span> <span class="muted">· {{ s.fetch_ms }} ms</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <section class="hero">
+      <h1>What did OpenAI, Anthropic and Gartner just publish?</h1>
+      <p class="lede">Pulse reads their blogs, news pages, YouTube channels and social profiles the moment you ask, and puts every update in one timeline.</p>
+      <div class="hero-actions">
+        <button id="fetch-btn" class="btn-primary" type="button">
+          <span class="btn-spinner" aria-hidden="true"></span>
+          <span class="btn-label">Fetch now</span>
+        </button>
+        <p class="hero-note">No cache, no API keys. Every item comes from a live request.</p>
+      </div>
+      <p id="run-summary" class="run-summary" aria-live="polite" hidden></p>
     </section>
 
-    <nav class="tabs" aria-label="Filter by company">
-      <button type="button" class="tab" data-filter="all" aria-pressed="true">All <span class="count">{{ items | length }}</span></button>
-      {% for company in companies %}
-      <button type="button" class="tab" data-filter="{{ company }}" aria-pressed="false">
-        {{ company }} <span class="count">{{ items | selectattr('company', 'equalto', company) | list | length }}</span>
-      </button>
-      {% endfor %}
-    </nav>
-
-    <ol class="feed">
-      {% for item in items %}
-      <li class="card" data-company="{{ item.company }}">
-        <div class="meta">
-          <span class="badge badge-{{ item.company | lower }}">{{ item.company }}</span>
-          <span class="tag">{{ item.source_type }}</span>
-          <time datetime="{{ item.published or '' }}" title="{{ item.published | fulldate }}">{{ item.published | timeago }}</time>
+    <section class="companies" aria-label="Companies and sources">
+      {% for company, description in companies.items() %}
+      <article class="company company-{{ company | lower }}">
+        <div class="company-head">
+          <span class="monogram" aria-hidden="true">{{ company[0] }}</span>
+          <div>
+            <h2>{{ company }}</h2>
+            <p>{{ description }}</p>
+          </div>
         </div>
-        <h3 class="title"><a href="{{ item.url }}" target="_blank" rel="noopener noreferrer">{{ item.title }}</a></h3>
-        {% if item.summary %}<p class="summary">{{ item.summary }}</p>{% endif %}
-      </li>
-      {% else %}
-      <li class="empty">No updates could be fetched right now. The status panel above shows why.</li>
+        <ul class="sources">
+          {% for source in sources_by_company[company] %}
+          <li class="source" data-source-id="{{ source.source_id }}" data-state="idle">
+            <span class="source-dot" aria-hidden="true"></span>
+            <span class="source-name">
+              {{ source.source_type }}
+              {% if source.bonus %}<span class="bonus">Bonus</span>{% endif %}
+            </span>
+            <span class="source-result">Ready</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </article>
       {% endfor %}
-    </ol>
+    </section>
+
+    <section id="results" class="results" hidden>
+      <div class="results-head">
+        <nav class="tabs" aria-label="Filter by company">
+          <button type="button" class="tab" data-filter="all" aria-pressed="true">All <span class="count"></span></button>
+          {% for company in companies %}
+          <button type="button" class="tab" data-filter="{{ company }}" aria-pressed="false">{{ company }} <span class="count"></span></button>
+          {% endfor %}
+        </nav>
+        <a class="raw-link" href="{{ url_for('api_updates') }}" target="_blank" rel="noopener">View raw JSON ↗</a>
+      </div>
+      <ol id="feed" class="feed"></ol>
+    </section>
   </main>
 
-  <footer class="site-footer">
+  <footer class="footer">
     <div class="wrap">
-      Every item above comes from a live HTTP request made when this page loaded.
-      · <a href="{{ github_url }}">Source on GitHub</a>
+      Built with Flask, requests, feedparser and BeautifulSoup · <a href="{{ github_url }}">Source on GitHub</a>
     </div>
   </footer>
 
-  <script>
-    // Filter tabs: show only cards whose data-company matches the chosen tab.
-    const tabs = document.querySelectorAll(".tab");
-    const cards = document.querySelectorAll(".card");
-    tabs.forEach((tab) => {
-      tab.addEventListener("click", () => {
-        const filter = tab.dataset.filter;
-        tabs.forEach((t) => t.setAttribute("aria-pressed", String(t === tab)));
-        cards.forEach((card) => {
-          card.hidden = filter !== "all" && card.dataset.company !== filter;
-        });
-      });
-    });
-  </script>
+  <!-- One feed card. app.js clones this for every item and fills it with textContent. -->
+  <template id="card-template">
+    <li class="card">
+      <div class="card-meta">
+        <span class="badge"></span>
+        <span class="tag"></span>
+        <time></time>
+      </div>
+      <h3 class="card-title"><a target="_blank" rel="noopener noreferrer"></a></h3>
+      <p class="card-summary"></p>
+    </li>
+  </template>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>
